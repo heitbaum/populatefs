@@ -20,7 +20,7 @@ void modPath_set_pathLen(int pathLen)
 	modPath_path_len = pathLen;
 }
 
-void addPath(const char *path, int squash_uids, int squash_perms, int shift_uids)
+void addPath(const char *path, int squash_uids, int squash_perms, int shift_uids, int emplaced_dir)
 {
 	size_t len;
 	char *full_name = NULL, *lnk = NULL;
@@ -34,6 +34,31 @@ void addPath(const char *path, int squash_uids, int squash_perms, int shift_uids
 
 	if ( !direc )
 		log_error("[Local fs opendir] Cannot open directory %s", path);
+
+	if (emplaced_dir) {
+		// we will be rerooting to this path and not "/"
+		overWrite = name_to_inode(path+1);
+		lstat(path, &st);
+		log_action(ACT_MKDIR, path+1, NULL, 0, 0, 0, 0, 0, 0, overWrite);
+		if ( !overWrite ) {
+			if ( !do_mkdir( &st, path+1 ))
+				log_error("[Filesystem error] cannot mkdir %s/%s", log_cwd(), path+1);
+		} else {
+			inodeType = inode_mode( path+1 );
+			if (!LINUX_S_ISDIR(inodeType))
+				log_error("[Remote fs mismatch] %s/%s exists but isn't a directory when it should be.", log_cwd(), path+1);
+		}
+		log_action(ACT_CHMODE, path+1, NULL, st.st_mode, 0, 0, 0, 0, 0, overWrite);
+		if ( !do_chmode(path+1, st.st_mode))
+			log_error("[Filesystem error] Failed to chmode 0x%x for directory %s/%s", st.st_mode, log_cwd(), path+1);
+		log_action(ACT_CHOWN, path+1, NULL, 0, st.st_uid, st.st_gid, 0, 0, 0, 0);
+		if ( !do_chown(path+1, st.st_uid, st.st_gid) )
+			log_error("[Filesystem error] Failed to chown %ld, %ld for directory %s/%s", st.st_uid, st.st_gid, log_cwd(), path+1);
+
+		log_action(ACT_CHDIR, path+1, NULL, 0, 0, 0, 0, 0, 0, 0);
+		if ( !do_chdir( path+1 ) )
+			log_error("[Filesystem error] cannot chdir to newly created %s/%s", log_cwd(), path+1);
+	}
 
 	while (( file = readdir(direc)) != NULL ) {
 
@@ -120,7 +145,7 @@ void addPath(const char *path, int squash_uids, int squash_perms, int shift_uids
 			if ( !do_chdir( file->d_name ))
 				log_error("[Filesystem error] cannot chdir to newly created %s/%s", log_cwd(), file->d_name);
 
-			addPath(full_name, squash_uids, squash_perms, shift_uids);
+			addPath(full_name, squash_uids, squash_perms, shift_uids, 0);
 
 			log_action(ACT_CHDIR, "..", NULL, 0, 0, 0, 0, 0, 0, 0);
 			if ( !do_chdir(".."))

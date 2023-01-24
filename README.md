@@ -1,9 +1,11 @@
-populatefs 1.1
+populatefs 1.2
 ==========
 
 A nearly drop-in replacement for `genext2fs` from [tytso/e2fsprogs](https://github.com/tytso/e2fsprogs) that is compatible with ext4.  
 
 version 1.1+ has added support for [offset images](https://github.com/oskarirauta/populatefs/issues/4)
+
+version 1.2 adds the `-d @/top-dir` syntax to allow composing multiple root-level-dirs into an image.
 
 Image generation
 ================
@@ -24,10 +26,11 @@ then use populatefs to populate the empty filesystem:
 Usage
 =====
 ```
-Usage:./populateds [options] (image | diskimage?offset=<starting-byte-of-ext4-partition>)"
+Usage:./populatefs [options] (image | diskimage?offset=<starting-byte-of-ext4-partition>)"
 Manipulate ext4 images from directories/files
 
- -d <directory>   Add the given directory and contents at a particular path to root
+ -d @/directory   Add the given directory to the image's root as-a-dir
+ -d <directory>   Add the given directory's contents into the image's root
  -D <file>        Add device nodes and directories from filespec
  -U               Squash owners making all files be owner by root:root
  -P               Squash permissions on all files

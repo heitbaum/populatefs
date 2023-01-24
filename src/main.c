@@ -23,7 +23,8 @@ int main(int argc, char **argv)
 	const char *usage =
 		"Usage: %s [options] (image | diskimage?offset=<starting-byte-of-ext4-partition>)\r\n"
 		"Manipulate ext4 disk images from directories/files\r\n\n"
-		" -d <directory>   Add the given directory and contents at a particular path to root\r\n"
+		" -d @/directory   Add the given directory to the image's root as-a-dir\r\n"
+		" -d <directory>   Add the given directory's contents into the image's root\r\n"
 		" -D <file>        Add device nodes and directories from filespec\r\n"
 		" -b <bytesize>    Override autodetection of the filesytem block size, in bytes\r\n"
 		" -s <blocknum>    Specify the location of the ext superblock (default = 1)\r\n"
@@ -140,6 +141,12 @@ int main(int argc, char **argv)
 		log_error("[Filesystem error] %s cannot be opened with write priviledges.", argv[optind]);
 
 	for (c = 0; c < sourcenum; c++) {
+		int emplace_as_dir = 0;
+		// if it starts with '@/",then we want to emplace the dir into root as-a-dir
+		if (source[c][0] == '@' && source[c][1] == '/') {
+			emplace_as_dir = 1;
+			memmove(source[c], source[c]+1, strlen(source[c])); // unshift
+		}
 		struct stat st;
 		stat(source[c], &st);
 
@@ -149,7 +156,11 @@ int main(int argc, char **argv)
 		if (( st.st_mode & S_IFMT ) == S_IFREG )
 			printf("Populating filesystem from filespec (%s)\r\n", source[c]);
 		else if (( st.st_mode & S_IFMT ) == S_IFDIR )
-			printf("Populating filesystem from path (%s)\r\n", source[c]);
+			if (emplace_as_dir) {
+				printf("Populating '%s' from path (%s)\r\n", source[c], source[c]);
+			} else {
+				printf("Populating filesystem from path (%s)\r\n", source[c]);
+			}
 		else
 			log_error("%s is neither a file nor existing path.", source[c]);
 
@@ -168,8 +179,9 @@ int main(int argc, char **argv)
 			fclose(fd);
 			break;
 		case S_IFDIR:
-			modPath_set_pathLen(strlen(source[c]));
-			addPath(source[c], squash_uids, squash_perms, shift_uids);
+			if (!emplace_as_dir)
+				modPath_set_pathLen(strlen(source[c]));
+			addPath(source[c], squash_uids, squash_perms, shift_uids, emplace_as_dir);
 			linklist_release();
 			break;
 		}
